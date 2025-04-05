@@ -14,7 +14,8 @@ import {
   addDoc, 
   serverTimestamp, 
   doc, 
-  getDoc 
+  getDoc,
+  Timestamp
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Message, User } from "@/types";
@@ -178,7 +179,9 @@ const MessageChat = () => {
                 >
                   <p>{message.content}</p>
                   <p className={`text-xs mt-1 ${isCurrentUser ? 'text-primary-foreground/80' : 'text-gray-500'}`}>
-                    {message.createdAt?.toDate ? message.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Sending...'}
+                    {message.createdAt instanceof Timestamp 
+                      ? message.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                      : 'Sending...'}
                   </p>
                 </div>
               </div>
