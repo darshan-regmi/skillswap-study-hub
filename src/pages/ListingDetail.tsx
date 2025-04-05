@@ -1,12 +1,13 @@
 
-import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
+import ReviewForm from "@/components/reviews/ReviewForm";
 import { 
   Calendar, 
   Download, 
@@ -14,11 +15,18 @@ import {
   Star, 
   Clock, 
   ShoppingCart,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Listing } from "@/types";
+import { getReviewsForListing } from "@/services/reviewService";
+import { createCheckoutSession } from "@/services/paymentService";
 
-// Mock listing data
+// Mock listing data for initial render before real data loads
 const mockListing = {
   id: "1",
   title: "Advanced React Hooks and Context API Tutorial",
@@ -35,58 +43,122 @@ const mockListing = {
   reviewCount: 24,
 };
 
-// Mock reviews
-const mockReviews = [
-  {
-    id: "r1",
-    userId: "user456",
-    rating: 5,
-    comment: "Incredibly helpful tutorial! The explanations are clear and the code examples are practical. I especially appreciated the section on performance optimization with useCallback and useMemo.",
-    userName: "Emma Wilson",
-    userPhotoURL: "https://gravatar.com/avatar/2c7d99fe281ecd3bcd65ab915bac6dd5?s=200",
-    createdAt: new Date("2023-03-10"),
-  },
-  {
-    id: "r2",
-    userId: "user789",
-    rating: 4,
-    comment: "Great content and well-structured. The project walkthrough helped me understand how to apply the concepts in a real-world scenario. Would have liked a bit more on testing React components with hooks.",
-    userName: "Michael Brown",
-    userPhotoURL: "https://gravatar.com/avatar/bc8e466a378e5f37c1b745d51581c3dc?s=200",
-    createdAt: new Date("2023-02-28"),
-  },
-  {
-    id: "r3",
-    userId: "user101",
-    rating: 5,
-    comment: "This saved me so much time! I was struggling with context and useReducer, but this tutorial made everything click. Highly recommended for anyone building complex React apps.",
-    userName: "Sarah Chen",
-    userPhotoURL: "https://gravatar.com/avatar/5ebc9eec6577053048e7e9cffcb849e3?s=200",
-    createdAt: new Date("2023-01-22"),
-  },
-];
-
 const ListingDetail = () => {
   const { id } = useParams<{ id: string }>();
+  const [listing, setListing] = useState<Listing | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [activeTab, setActiveTab] = useState("description");
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
   
-  // In a real app, we would fetch the listing based on the id
-  const listing = mockListing; // Assuming this is the listing with the given id
+  // Fetch listing data
+  useEffect(() => {
+    const fetchListing = async () => {
+      if (!id) return;
+      
+      try {
+        const docRef = doc(db, "listings", id);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          setListing({
+            id: docSnap.id,
+            ...docSnap.data(),
+          } as Listing);
+        } else {
+          console.log("No such listing!");
+          // For demo purposes, use mock data if no listing found
+          setListing(mockListing as unknown as Listing);
+        }
+      } catch (error) {
+        console.error("Error fetching listing:", error);
+        toast.error("Failed to load listing");
+        // For demo purposes, use mock data on error
+        setListing(mockListing as unknown as Listing);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchListing();
+  }, [id]);
+  
+  // Fetch reviews
+  useEffect(() => {
+    const fetchReviews = async () => {
+      if (!id) return;
+      
+      try {
+        const fetchedReviews = await getReviewsForListing(id);
+        setReviews(fetchedReviews);
+      } catch (error) {
+        console.error("Error fetching reviews:", error);
+      }
+    };
+    
+    fetchReviews();
+  }, [id]);
 
-  const handlePurchase = () => {
+  const handlePurchase = async () => {
+    if (!currentUser) {
+      toast.error("Please log in to make a purchase");
+      navigate("/login");
+      return;
+    }
+    
+    if (!listing) return;
+    
     setIsPurchasing(true);
-    // In a real app, redirect to Stripe Checkout
-    setTimeout(() => {
-      toast.success("Taking you to checkout...");
-      // Redirect to a mock checkout page
+    
+    try {
+      // In a real app, this would create a Stripe checkout session
+      const checkoutUrl = await createCheckoutSession(currentUser.uid, listing);
+      window.location.href = checkoutUrl;
+    } catch (error) {
+      console.error("Error creating checkout session:", error);
+      toast.error("Failed to initiate checkout");
       setIsPurchasing(false);
-    }, 1000);
+    }
   };
 
   const handleContactSeller = () => {
+    // In a real app, this would create or navigate to a conversation with the seller
+    if (!currentUser) {
+      toast.error("Please log in to contact the seller");
+      navigate("/login");
+      return;
+    }
+    
+    if (!listing) return;
+    
     toast.success("Message request sent to seller!");
+    // Navigate to messages in a real implementation
+    // navigate(`/messages/${conversationId}`);
   };
+  
+  const handleReviewSubmitted = async () => {
+    // Refresh reviews after a new one is submitted
+    if (!id) return;
+    try {
+      const updatedReviews = await getReviewsForListing(id);
+      setReviews(updatedReviews);
+    } catch (error) {
+      console.error("Error refreshing reviews:", error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="container mx-auto py-16 px-4 text-center">
+          <Loader2 className="mx-auto h-16 w-16 animate-spin text-primary" />
+          <h2 className="mt-4 text-xl font-medium">Loading listing...</h2>
+        </div>
+      </Layout>
+    );
+  }
 
   if (!listing) {
     return (
@@ -128,19 +200,23 @@ const ListingDetail = () => {
               <div className="flex flex-wrap items-center gap-4 mt-2">
                 <div className="flex items-center">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
-                  <span className="font-medium">{listing.averageRating}</span>
-                  <span className="text-gray-500 text-sm ml-1">({listing.reviewCount} reviews)</span>
+                  <span className="font-medium">{listing.averageRating || "New"}</span>
+                  <span className="text-gray-500 text-sm ml-1">
+                    ({listing.reviewCount || reviews.length} reviews)
+                  </span>
                 </div>
                 <div className="flex items-center text-gray-500">
                   <Clock className="h-4 w-4 mr-1" />
                   <span className="text-sm">
-                    Listed on {listing.createdAt.toLocaleDateString()}
+                    Listed on {listing.createdAt instanceof Date
+                      ? listing.createdAt.toLocaleDateString()
+                      : new Date(listing.createdAt).toLocaleDateString()}
                   </span>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-2 mt-4">
-                {listing.tags.map((tag) => (
+                {listing.tags?.map((tag) => (
                   <Badge key={tag} variant="secondary">
                     {tag}
                   </Badge>
@@ -158,7 +234,7 @@ const ListingDetail = () => {
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="description">Description</TabsTrigger>
                 <TabsTrigger value="reviews">
-                  Reviews ({mockReviews.length})
+                  Reviews ({reviews.length})
                 </TabsTrigger>
               </TabsList>
               
@@ -200,7 +276,7 @@ const ListingDetail = () => {
               
               <TabsContent value="reviews" className="mt-6">
                 <div className="space-y-6">
-                  {mockReviews.length === 0 ? (
+                  {reviews.length === 0 ? (
                     <div className="text-center py-8">
                       <p className="text-gray-500">No reviews yet.</p>
                     </div>
@@ -211,23 +287,31 @@ const ListingDetail = () => {
                         <h3 className="text-lg font-medium">Review Summary</h3>
                         <div className="flex items-center gap-4 mt-3">
                           <div className="text-center">
-                            <div className="text-3xl font-bold">{listing.averageRating}</div>
+                            <div className="text-3xl font-bold">
+                              {listing.averageRating || 
+                                (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1)}
+                            </div>
                             <div className="flex mt-1">
                               {Array(5).fill(0).map((_, i) => (
                                 <Star 
                                   key={i} 
-                                  className={`h-4 w-4 ${i < Math.round(listing.averageRating) ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} 
+                                  className={`h-4 w-4 ${
+                                    i < Math.round(listing.averageRating || 
+                                      reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length) 
+                                      ? "fill-yellow-400 text-yellow-400" 
+                                      : "text-gray-300"
+                                  }`} 
                                 />
                               ))}
                             </div>
                             <div className="text-sm text-gray-500 mt-1">
-                              {listing.reviewCount} reviews
+                              {reviews.length} reviews
                             </div>
                           </div>
                           <div className="flex-1 space-y-2">
                             {[5, 4, 3, 2, 1].map((rating) => {
-                              const count = mockReviews.filter(r => r.rating === rating).length;
-                              const percentage = (count / mockReviews.length) * 100;
+                              const count = reviews.filter(r => r.rating === rating).length;
+                              const percentage = (count / reviews.length) * 100;
                               return (
                                 <div key={rating} className="flex items-center text-sm">
                                   <span className="w-12">{rating} stars</span>
@@ -247,18 +331,26 @@ const ListingDetail = () => {
 
                       {/* Review list */}
                       <div className="space-y-4">
-                        {mockReviews.map((review) => (
+                        {reviews.map((review) => (
                           <Card key={review.id}>
                             <CardContent className="p-4">
                               <div className="flex items-start gap-4">
                                 <Avatar>
-                                  <img src={review.userPhotoURL} alt={review.userName} />
+                                  {review.userPhotoURL ? (
+                                    <img src={review.userPhotoURL} alt={review.userName} />
+                                  ) : (
+                                    <div className="bg-primary text-primary-foreground w-full h-full flex items-center justify-center text-xl font-medium">
+                                      {review.userName?.charAt(0)}
+                                    </div>
+                                  )}
                                 </Avatar>
                                 <div className="flex-1">
                                   <div className="flex justify-between">
                                     <h4 className="font-medium">{review.userName}</h4>
                                     <span className="text-sm text-gray-500">
-                                      {review.createdAt.toLocaleDateString()}
+                                      {review.createdAt instanceof Date 
+                                        ? review.createdAt.toLocaleDateString()
+                                        : new Date(review.createdAt).toLocaleDateString()}
                                     </span>
                                   </div>
                                   <div className="flex mt-1">
@@ -278,6 +370,17 @@ const ListingDetail = () => {
                       </div>
                     </div>
                   )}
+                  
+                  {/* Add review form */}
+                  {currentUser && currentUser.uid !== listing.sellerId && (
+                    <div className="mt-8">
+                      <ReviewForm 
+                        listingId={listing.id} 
+                        listingTitle={listing.title} 
+                        onReviewSubmitted={handleReviewSubmitted}
+                      />
+                    </div>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
@@ -293,10 +396,15 @@ const ListingDetail = () => {
                 <Button 
                   className="w-full mt-4" 
                   onClick={handlePurchase}
-                  disabled={isPurchasing}
+                  disabled={isPurchasing || (currentUser?.uid === listing.sellerId)}
                 >
                   {isPurchasing ? (
-                    "Processing..."
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : currentUser?.uid === listing.sellerId ? (
+                    "You own this listing"
                   ) : (
                     <>
                       <ShoppingCart className="mr-2 h-4 w-4" />
@@ -309,6 +417,7 @@ const ListingDetail = () => {
                   variant="outline" 
                   className="w-full mt-3"
                   onClick={handleContactSeller}
+                  disabled={currentUser?.uid === listing.sellerId}
                 >
                   <MessageSquare className="mr-2 h-4 w-4" />
                   Contact Seller
@@ -317,7 +426,13 @@ const ListingDetail = () => {
                 <div className="mt-6 pt-6 border-t border-gray-200">
                   <div className="flex items-center gap-3">
                     <Avatar>
-                      <img src={listing.sellerPhotoURL} alt={listing.sellerName} />
+                      {listing.sellerPhotoURL ? (
+                        <img src={listing.sellerPhotoURL} alt={listing.sellerName} />
+                      ) : (
+                        <div className="bg-primary text-primary-foreground w-full h-full flex items-center justify-center text-xl font-medium">
+                          {listing.sellerName?.charAt(0)}
+                        </div>
+                      )}
                     </Avatar>
                     <div>
                       <h4 className="font-medium">{listing.sellerName}</h4>

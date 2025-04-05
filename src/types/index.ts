@@ -1,13 +1,16 @@
 
+import { Timestamp } from "firebase/firestore";
+
 export interface User {
   id: string;
+  uid?: string;
   displayName: string;
   email: string;
   photoURL?: string;
   bio?: string;
   skills?: string[];
   averageRating?: number;
-  createdAt: Date;
+  createdAt: Date | Timestamp;
 }
 
 export interface Listing {
@@ -22,7 +25,7 @@ export interface Listing {
   sellerId: string;
   sellerName: string;
   sellerPhotoURL?: string;
-  createdAt: Date;
+  createdAt: Date | Timestamp;
   averageRating?: number;
   reviewCount?: number;
 }
@@ -35,7 +38,7 @@ export interface Review {
   comment: string;
   userName: string;
   userPhotoURL?: string;
-  createdAt: Date;
+  createdAt: Date | Timestamp;
 }
 
 export interface Order {
@@ -43,16 +46,27 @@ export interface Order {
   buyerId: string;
   sellerId: string;
   listingId: string;
+  listingTitle: string;
+  price: number;
   status: 'pending' | 'completed' | 'cancelled';
-  createdAt: Date;
-  completedAt?: Date;
+  createdAt: Date | Timestamp;
+  completedAt?: Date | Timestamp;
+  cancelledAt?: Date | Timestamp;
 }
 
 export interface Message {
   id: string;
   senderId: string;
-  receiverId: string;
+  receiverId?: string;
   content: string;
-  createdAt: Date;
+  createdAt: Date | Timestamp;
   read: boolean;
+}
+
+export interface Conversation {
+  id: string;
+  participants: string[];
+  lastMessage?: string;
+  lastMessageTime?: Date | Timestamp;
+  createdAt: Date | Timestamp;
 }
