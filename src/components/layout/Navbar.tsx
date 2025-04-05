@@ -1,30 +1,24 @@
 
 import { Button } from "@/components/ui/button";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Search, Menu, X, User, LogIn, LogOut, PlusCircle } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // This would come from auth context in a real app
-  const navigate = useNavigate();
+  const { currentUser, logout } = useAuth();
   
   const toggleMenu = () => {
     setIsOpen(!isOpen);
   };
 
-  const handleLogout = () => {
-    // This would call your auth service's logout method in a real app
-    toast.success("Logged out successfully");
-    setIsLoggedIn(false);
-    navigate("/");
-  };
-
-  const handleLogin = () => {
-    // For demo purposes only - in a real app we would not do this
-    setIsLoggedIn(true);
-    toast.success("Logged in as demo user");
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
 
   return (
@@ -61,7 +55,7 @@ const Navbar = () => {
 
         {/* Desktop Auth Buttons */}
         <div className="hidden md:flex items-center gap-3">
-          {isLoggedIn ? (
+          {currentUser ? (
             <>
               <Button variant="outline" asChild>
                 <Link to="/create-listing">
@@ -86,10 +80,6 @@ const Navbar = () => {
               </Button>
               <Button asChild>
                 <Link to="/signup">Sign Up</Link>
-              </Button>
-              {/* Demo button - would be removed in a real app */}
-              <Button variant="link" onClick={handleLogin} className="text-xs">
-                Demo Login
               </Button>
             </>
           )}
@@ -136,7 +126,7 @@ const Navbar = () => {
             >
               How It Works
             </Link>
-            {isLoggedIn ? (
+            {currentUser ? (
               <>
                 <Link
                   to="/create-listing"
@@ -175,17 +165,6 @@ const Navbar = () => {
                 </Link>
                 <Button className="mt-2" onClick={toggleMenu} asChild>
                   <Link to="/signup">Sign Up</Link>
-                </Button>
-                {/* Demo button - would be removed in a real app */}
-                <Button 
-                  variant="link" 
-                  onClick={() => {
-                    handleLogin();
-                    toggleMenu();
-                  }} 
-                  className="text-xs"
-                >
-                  Demo Login
                 </Button>
               </>
             )}

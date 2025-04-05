@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,40 +16,44 @@ import {
 } from "@/components/ui/form";
 import { Mail, Lock, LogIn } from "lucide-react";
 import Layout from "@/components/layout/Layout";
-import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
   password: z.string().min(6, { message: "Password must be at least 6 characters" }),
+  rememberMe: z.boolean().optional(),
 });
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
+  const { login, loginWithGoogle } = useAuth();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
       password: "",
+      rememberMe: false,
     },
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsLoading(true);
-      // Here we would normally authenticate the user
-      console.log("Login submitted:", values);
-      
-      // Mock success for now
-      setTimeout(() => {
-        toast.success("Login successful!");
-        navigate("/dashboard");
-        setIsLoading(false);
-      }, 1000);
+      await login(values.email, values.password);
     } catch (error) {
       console.error("Login error:", error);
-      toast.error("Login failed. Please check your credentials.");
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setIsLoading(true);
+      await loginWithGoogle();
+    } catch (error) {
+      console.error("Google login error:", error);
       setIsLoading(false);
     }
   };
@@ -112,8 +116,25 @@ const Login = () => {
                 )}
               />
 
-              <div className="flex justify-between items-center text-sm">
-                <Link to="/forgot-password" className="text-primary hover:underline">
+              <div className="flex items-center justify-between">
+                <FormField
+                  control={form.control}
+                  name="rememberMe"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center space-x-2 space-y-0">
+                      <FormControl>
+                        <Checkbox 
+                          checked={field.value} 
+                          onCheckedChange={field.onChange} 
+                        />
+                      </FormControl>
+                      <FormLabel className="text-sm font-normal cursor-pointer">
+                        Remember me
+                      </FormLabel>
+                    </FormItem>
+                  )}
+                />
+                <Link to="/forgot-password" className="text-primary hover:underline text-sm">
                   Forgot password?
                 </Link>
               </div>
@@ -143,7 +164,12 @@ const Login = () => {
             </div>
           </div>
 
-          <Button variant="outline" className="w-full">
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+          >
             <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"

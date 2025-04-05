@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,25 +14,23 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Mail, Lock, User, UserPlus } from "lucide-react";
+import { Mail, Lock, User, LogIn } from "lucide-react";
 import Layout from "@/components/layout/Layout";
-import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
-const formSchema = z
-  .object({
-    name: z.string().min(2, { message: "Name must be at least 2 characters" }),
-    email: z.string().email({ message: "Please enter a valid email address" }),
-    password: z.string().min(6, { message: "Password must be at least 6 characters" }),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ["confirmPassword"],
-  });
+const formSchema = z.object({
+  name: z.string().min(2, { message: "Name must be at least 2 characters" }),
+  email: z.string().email({ message: "Please enter a valid email address" }),
+  password: z.string().min(6, { message: "Password must be at least 6 characters" }),
+  confirmPassword: z.string(),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
 
 const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
+  const { signUp, loginWithGoogle } = useAuth();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -47,18 +45,19 @@ const Signup = () => {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsLoading(true);
-      // Here we would normally create a new user
-      console.log("Signup submitted:", values);
-      
-      // Mock success for now
-      setTimeout(() => {
-        toast.success("Account created successfully!");
-        navigate("/dashboard");
-        setIsLoading(false);
-      }, 1000);
+      await signUp(values.email, values.password, values.name);
     } catch (error) {
       console.error("Signup error:", error);
-      toast.error("Failed to create account. Please try again.");
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setIsLoading(true);
+      await loginWithGoogle();
+    } catch (error) {
+      console.error("Google login error:", error);
       setIsLoading(false);
     }
   };
@@ -69,7 +68,7 @@ const Signup = () => {
         <div className="space-y-6 bg-white p-8 rounded-lg shadow-md">
           <div className="text-center">
             <h1 className="text-2xl font-bold">Create an account</h1>
-            <p className="text-gray-500 mt-2">Join SkillSwap and start sharing your knowledge</p>
+            <p className="text-gray-500 mt-2">Join SkillSwap to share and learn skills</p>
           </div>
 
           <Form {...form}>
@@ -176,9 +175,7 @@ const Signup = () => {
                 {isLoading ? (
                   "Creating account..."
                 ) : (
-                  <>
-                    <UserPlus className="mr-2 h-4 w-4" /> Sign Up
-                  </>
+                  "Create Account"
                 )}
               </Button>
             </form>
@@ -193,7 +190,12 @@ const Signup = () => {
             </div>
           </div>
 
-          <Button variant="outline" className="w-full">
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+          >
             <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
